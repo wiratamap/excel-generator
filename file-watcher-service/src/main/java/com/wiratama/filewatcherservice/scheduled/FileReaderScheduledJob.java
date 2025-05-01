@@ -1,6 +1,7 @@
 package com.wiratama.filewatcherservice.scheduled;
 
 import com.wiratama.filewatcherservice.client.ExcelGeneratorServiceClient;
+import com.wiratama.filewatcherservice.client.dto.GenerateExcelResponse;
 import com.wiratama.filewatcherservice.properties.PathProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +9,9 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,7 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.concurrent.Executors;
 
 @Component
 @RequiredArgsConstructor
@@ -27,27 +31,43 @@ public class FileReaderScheduledJob {
   private final ExcelGeneratorServiceClient excelGeneratorServiceClient;
 
   @Scheduled(fixedDelay = 10_000)
-  public void run() {
+  public void onReadIncomingXmlFile() {
     log.info("Running scheduled job, reading xml file from folder {}", pathProperties.getIncomingPath());
-    File folder = new File(pathProperties.getIncomingPath());
-    File[] files = folder.listFiles((dir, name) -> name.endsWith(".xml"));
-
-    Optional.ofNullable(files)
-      .map(Arrays::stream)
-      .stream()
-      .flatMap(s -> s)
-      .map(FileSystemResource::new)
-      .map(excelGeneratorServiceClient::generateExcel)
-      .map(ResponseEntity::getBody)
+    Mono.fromSupplier(this::toIncomingFiles)
       .filter(Objects::nonNull)
-      .forEach(response -> {
-        log.info("Generate Excel result: {}, with detail: {}, xml name: {}, generated file path: {}", response.getMessage(), response.getDetail(), response.getXmlFileName(), response.getGeneratedFilePath());
-        try {
-          Files.delete(Paths.get(pathProperties.getIncomingPath() + response.getXmlFileName()));
-        } catch (IOException e) {
-          log.error("Failed to delete incoming xml file with file name {}", response.getXmlFileName(), e);
-        }
-      });
+      .map(Arrays::asList)
+      .flatMapMany(Flux::fromIterable)
+      .flatMap(this::generateExcel)
+      .doOnNext(response ->
+        log.info("Generate Excel result: {}, with detail: {}, xml name: {}, generated file path: {}",
+          response.getMessage(), response.getDetail(), response.getXmlFileName(), response.getGeneratedFilePath()))
+      .flatMap(this::deleteIncomingFile)
+      .subscribeOn(Schedulers.fromExecutorService(Executors.newVirtualThreadPerTaskExecutor()))
+      .subscribe();
+  }
+
+  private Mono<GenerateExcelResponse> deleteIncomingFile(GenerateExcelResponse response) {
+    return Mono.fromSupplier(() -> {
+      try {
+        Files.delete(Paths.get(pathProperties.getIncomingPath() + response.getXmlFileName()));
+        return response;
+      } catch (IOException e) {
+        log.error("Failed to delete incoming xml file with file name {}", response.getXmlFileName(), e);
+        return response;
+      }
+    })
+    .subscribeOn(Schedulers.fromExecutorService(Executors.newVirtualThreadPerTaskExecutor()));
+  }
+
+  private Mono<GenerateExcelResponse> generateExcel(File file) {
+    return Mono.fromSupplier(() -> file)
+      .flatMap(f -> excelGeneratorServiceClient.generateExcel(new FileSystemResource(f)))
+      .mapNotNull(ResponseEntity::getBody);
+  }
+
+  private File[] toIncomingFiles() {
+    File folder = new File(pathProperties.getIncomingPath());
+    return folder.listFiles((dir, name) -> name.endsWith(".xml"));
   }
 
 }

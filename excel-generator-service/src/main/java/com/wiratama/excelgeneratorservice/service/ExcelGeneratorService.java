@@ -48,14 +48,14 @@ public class ExcelGeneratorService {
         .map(XmlRowDto::toMap)
         .toList();
 
+      XSSFWorkbook workbook = new XSSFWorkbook();
+      XSSFSheet sheet = workbook.createSheet("Data");
+
       Set<String> headersContent = parsedXml
         .stream()
         .map(Map::keySet)
         .flatMap(Collection::stream)
         .collect(Collectors.toSet());
-
-      XSSFWorkbook workbook = new XSSFWorkbook();
-      XSSFSheet sheet = workbook.createSheet("Data");
 
       createHeader(sheet, headersContent);
       createRowContent(parsedXml, sheet, headersContent);

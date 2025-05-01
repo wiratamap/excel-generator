@@ -4,11 +4,11 @@ import com.wiratama.filewatcherservice.client.ExcelGeneratorServiceClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.config.ConfigurableBeanFactory;
 import org.springframework.beans.factory.config.EmbeddedValueResolver;
-import org.springframework.cloud.client.loadbalancer.LoadBalanced;
+import org.springframework.cloud.client.loadbalancer.reactive.LoadBalancedExchangeFilterFunction;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.client.support.RestTemplateAdapter;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.support.WebClientAdapter;
 import org.springframework.web.service.invoker.HttpServiceProxyFactory;
 
 @Configuration
@@ -18,19 +18,19 @@ public class ClientConfiguration {
   private final ConfigurableBeanFactory configurableBeanFactory;
 
   @Bean
-  @LoadBalanced
-  public RestTemplate restTemplate() {
-    return new RestTemplate();
+  public WebClient restTemplate(LoadBalancedExchangeFilterFunction loadBalancedExchangeFilterFunction) {
+    return WebClient.builder()
+      .filter(loadBalancedExchangeFilterFunction)
+      .build();
   }
 
   @Bean
-  public ExcelGeneratorServiceClient excelGeneratorServiceClient(RestTemplate restTemplate) {
-    HttpServiceProxyFactory factory = HttpServiceProxyFactory
-      .builder()
-      .exchangeAdapter(RestTemplateAdapter.create(restTemplate))
-      .embeddedValueResolver(new EmbeddedValueResolver(configurableBeanFactory))
-      .build();
-
-    return factory.createClient(ExcelGeneratorServiceClient.class);
+  public ExcelGeneratorServiceClient excelGeneratorServiceClient(WebClient webClient) {
+    HttpServiceProxyFactory httpServiceProxyFactory =
+      HttpServiceProxyFactory
+        .builderFor(WebClientAdapter.create(webClient))
+        .embeddedValueResolver(new EmbeddedValueResolver(configurableBeanFactory))
+        .build();
+    return httpServiceProxyFactory.createClient(ExcelGeneratorServiceClient.class);
   }
 }
