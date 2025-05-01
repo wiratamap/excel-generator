@@ -38,13 +38,13 @@ public class FileReaderScheduledJob {
       .map(Arrays::asList)
       .flatMapMany(Flux::fromIterable)
       .flatMap(this::generateExcel)
-      .flatMap(this::deleteIncomingFile)
+      .flatMap(this::deleteIncomingXmlFile)
       .subscribeOn(Schedulers.fromExecutorService(Executors.newVirtualThreadPerTaskExecutor()))
       .subscribe(response -> log.info("Generate Excel result: {}, with detail: {}, xml name: {}, generated file path: {}",
         response.getMessage(), response.getDetail(), response.getXmlFileName(), response.getGeneratedFilePath()));
   }
 
-  private Mono<GenerateExcelResponse> deleteIncomingFile(GenerateExcelResponse response) {
+  private Mono<GenerateExcelResponse> deleteIncomingXmlFile(GenerateExcelResponse response) {
     return Mono.fromSupplier(() -> {
       try {
         String pathFile = pathProperties.getIncomingPath() + response.getXmlFileName();
