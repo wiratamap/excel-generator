@@ -12,7 +12,7 @@
 	<artifactId>service-discovery</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>service-discovery</name>
-	<description>File Watcher Service</description>
+	<description>Service Discovery</description>
 	<url/>
 	<licenses>
 		<license/>

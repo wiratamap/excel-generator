@@ -12,7 +12,7 @@
 	<artifactId>excel-generator-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>excel-generator-service</name>
-	<description>File Watcher Service</description>
+	<description>Excel Generator Service</description>
 	<url/>
 	<licenses>
 		<license/>
